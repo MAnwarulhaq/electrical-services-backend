@@ -37,10 +37,11 @@ const app = express();
 // =======================
 // CORS
 // =======================
-
 const allowedOrigins = [
   process.env.CLIENT_URL,
   "http://localhost:5173",
+  "https://electrofix-nine.vercel.app",
+  "https://electrofix.vercel.app",
 ];
 
 app.use(
