@@ -97,172 +97,170 @@ const createBooking = asyncHandler(async (req, res) => {
   });
 
   // Populate response
+  // Populate booking
   const populatedBooking = await Booking.findById(booking._id)
     .populate("service", "name startingPrice")
     .populate("area", "name")
     .populate("user", "fullName email mobileNumber");
 
-  console.log("Generated Booking ID:", bookingId);
-  console.log("Populated Booking:", populatedBooking);
-
   res.status(201).json({
     success: true,
     message: "Booking created successfully",
+    bookingId: populatedBooking.bookingId,
     data: populatedBooking,
   });
+
 });
+  // @desc    Track a booking by Booking ID (public, limited info)
+  // @route   GET /api/bookings/track/:bookingId
+  // @access  Public
+  const trackBooking = asyncHandler(async (req, res) => {
+    const booking = await Booking.findOne({
+      bookingId: req.params.bookingId,
+    })
+      .populate("service", "name")
+      .populate("area", "name")
+      .populate("assignedElectrician", "name mobileNumber availabilityStatus");
 
+    if (!booking) {
+      res.status(404);
+      throw new Error("Booking not found. Please check your Booking ID.");
+    }
 
-// @desc    Track a booking by Booking ID (public, limited info)
-// @route   GET /api/bookings/track/:bookingId
-// @access  Public
-const trackBooking = asyncHandler(async (req, res) => {
-  const booking = await Booking.findOne({
-    bookingId: req.params.bookingId,
-  })
-    .populate("service", "name")
-    .populate("area", "name")
-    .populate("assignedElectrician", "name mobileNumber availabilityStatus");
-
-  if (!booking) {
-    res.status(404);
-    throw new Error("Booking not found. Please check your Booking ID.");
-  }
-
-  // Only return non-sensitive info for public tracking
-  res.json({
-    success: true,
-    data: {
-      bookingId: booking.bookingId,
-      customerName: booking.fullName,
-      service: booking.service?.name,
-      area: booking.area?.name,
-      preferredDate: booking.preferredDate,
-      preferredTime: booking.preferredTime,
-      status: booking.status,
-      serviceType: booking.serviceType,
-      assignedElectrician: booking.assignedElectrician
-        ? {
-          name: booking.assignedElectrician.name,
-          status: booking.assignedElectrician.availabilityStatus,
-        }
-        : null,
-      createdAt: booking.createdAt,
-    },
+    // Only return non-sensitive info for public tracking
+    res.json({
+      success: true,
+      data: {
+        bookingId: booking.bookingId,
+        customerName: booking.fullName,
+        service: booking.service?.name,
+        area: booking.area?.name,
+        preferredDate: booking.preferredDate,
+        preferredTime: booking.preferredTime,
+        status: booking.status,
+        serviceType: booking.serviceType,
+        assignedElectrician: booking.assignedElectrician
+          ? {
+            name: booking.assignedElectrician.name,
+            status: booking.assignedElectrician.availabilityStatus,
+          }
+          : null,
+        createdAt: booking.createdAt,
+      },
+    });
   });
-});
 
-// @desc    Get all bookings with filters (admin)
-// @route   GET /api/bookings
-// @access  Private
-const getAllBookings = asyncHandler(async (req, res) => {
-  const { status, area, service, date, search, page = 1, limit = 20 } = req.query;
+  // @desc    Get all bookings with filters (admin)
+  // @route   GET /api/bookings
+  // @access  Private
+  const getAllBookings = asyncHandler(async (req, res) => {
+    const { status, area, service, date, search, page = 1, limit = 20 } = req.query;
 
-  const filter = {};
-  if (status) filter.status = status;
-  if (area) filter.area = area;
-  if (service) filter.service = service;
-  if (date) {
-    const start = new Date(date);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(date);
-    end.setHours(23, 59, 59, 999);
-    filter.preferredDate = { $gte: start, $lte: end };
-  }
-  if (search) {
-    filter.$or = [
-      { fullName: { $regex: search, $options: "i" } },
-      { mobileNumber: { $regex: search, $options: "i" } },
-      { bookingId: { $regex: search, $options: "i" } },
-    ];
-  }
+    const filter = {};
+    if (status) filter.status = status;
+    if (area) filter.area = area;
+    if (service) filter.service = service;
+    if (date) {
+      const start = new Date(date);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(date);
+      end.setHours(23, 59, 59, 999);
+      filter.preferredDate = { $gte: start, $lte: end };
+    }
+    if (search) {
+      filter.$or = [
+        { fullName: { $regex: search, $options: "i" } },
+        { mobileNumber: { $regex: search, $options: "i" } },
+        { bookingId: { $regex: search, $options: "i" } },
+      ];
+    }
 
-  const skip = (Number(page) - 1) * Number(limit);
+    const skip = (Number(page) - 1) * Number(limit);
 
-  const [bookings, total] = await Promise.all([
-    Booking.find(filter)
+    const [bookings, total] = await Promise.all([
+      Booking.find(filter)
+        .populate("service", "name startingPrice")
+        .populate("area", "name")
+        .populate("assignedElectrician", "name mobileNumber")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(Number(limit)),
+      Booking.countDocuments(filter),
+    ]);
+
+    res.json({
+      success: true,
+      count: bookings.length,
+      total,
+      page: Number(page),
+      pages: Math.ceil(total / Number(limit)),
+      data: bookings,
+    });
+  });
+
+  // @desc    Get single booking details (admin)
+  // @route   GET /api/bookings/:id
+  // @access  Private
+  const getBookingById = asyncHandler(async (req, res) => {
+    const booking = await Booking.findById(req.params.id)
       .populate("service", "name startingPrice")
       .populate("area", "name")
-      .populate("assignedElectrician", "name mobileNumber")
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(Number(limit)),
-    Booking.countDocuments(filter),
-  ]);
+      .populate("assignedElectrician", "name mobileNumber whatsappNumber");
 
-  res.json({
-    success: true,
-    count: bookings.length,
-    total,
-    page: Number(page),
-    pages: Math.ceil(total / Number(limit)),
-    data: bookings,
+    if (!booking) {
+      res.status(404);
+      throw new Error("Booking not found");
+    }
+
+    res.json({ success: true, data: booking });
   });
-});
 
-// @desc    Get single booking details (admin)
-// @route   GET /api/bookings/:id
-// @access  Private
-const getBookingById = asyncHandler(async (req, res) => {
-  const booking = await Booking.findById(req.params.id)
-    .populate("service", "name startingPrice")
-    .populate("area", "name")
-    .populate("assignedElectrician", "name mobileNumber whatsappNumber");
+  // @desc    Update booking status, assigned electrician, or admin notes
+  // @route   PUT /api/bookings/:id
+  // @access  Private
+  const updateBooking = asyncHandler(async (req, res) => {
+    const booking = await Booking.findById(req.params.id);
 
-  if (!booking) {
-    res.status(404);
-    throw new Error("Booking not found");
-  }
+    if (!booking) {
+      res.status(404);
+      throw new Error("Booking not found");
+    }
 
-  res.json({ success: true, data: booking });
-});
+    const { status, assignedElectrician, adminNotes } = req.body;
 
-// @desc    Update booking status, assigned electrician, or admin notes
-// @route   PUT /api/bookings/:id
-// @access  Private
-const updateBooking = asyncHandler(async (req, res) => {
-  const booking = await Booking.findById(req.params.id);
+    if (status !== undefined) booking.status = status;
+    if (assignedElectrician !== undefined) booking.assignedElectrician = assignedElectrician;
+    if (adminNotes !== undefined) booking.adminNotes = adminNotes;
 
-  if (!booking) {
-    res.status(404);
-    throw new Error("Booking not found");
-  }
+    const updatedBooking = await booking.save();
+    const populated = await Booking.findById(updatedBooking._id)
+      .populate("service", "name")
+      .populate("area", "name")
+      .populate("assignedElectrician", "name mobileNumber");
 
-  const { status, assignedElectrician, adminNotes } = req.body;
+    res.json({ success: true, data: populated });
+  });
 
-  if (status !== undefined) booking.status = status;
-  if (assignedElectrician !== undefined) booking.assignedElectrician = assignedElectrician;
-  if (adminNotes !== undefined) booking.adminNotes = adminNotes;
+  // @desc    Delete a booking
+  // @route   DELETE /api/bookings/:id
+  // @access  Private
+  const deleteBooking = asyncHandler(async (req, res) => {
+    const booking = await Booking.findById(req.params.id);
 
-  const updatedBooking = await booking.save();
-  const populated = await Booking.findById(updatedBooking._id)
-    .populate("service", "name")
-    .populate("area", "name")
-    .populate("assignedElectrician", "name mobileNumber");
+    if (!booking) {
+      res.status(404);
+      throw new Error("Booking not found");
+    }
 
-  res.json({ success: true, data: populated });
-});
+    await booking.deleteOne();
+    res.json({ success: true, message: "Booking deleted successfully" });
+  });
 
-// @desc    Delete a booking
-// @route   DELETE /api/bookings/:id
-// @access  Private
-const deleteBooking = asyncHandler(async (req, res) => {
-  const booking = await Booking.findById(req.params.id);
-
-  if (!booking) {
-    res.status(404);
-    throw new Error("Booking not found");
-  }
-
-  await booking.deleteOne();
-  res.json({ success: true, message: "Booking deleted successfully" });
-});
-
-module.exports = {
-  createBooking,
-  trackBooking,
-  getAllBookings,
-  getBookingById,
-  updateBooking,
-  deleteBooking,
-};
+  module.exports = {
+    createBooking,
+    trackBooking,
+    getAllBookings,
+    getBookingById,
+    updateBooking,
+    deleteBooking,
+  };

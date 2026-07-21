@@ -37,6 +37,7 @@ const app = express();
 // =======================
 // CORS
 // =======================
+
 const allowedOrigins = [
   process.env.CLIENT_URL,
   "http://localhost:5173",
@@ -62,12 +63,7 @@ app.use(
 // =======================
 
 app.use(express.json());
-
-app.use(
-  express.urlencoded({
-    extended: true,
-  })
-);
+app.use(express.urlencoded({ extended: true }));
 
 // =======================
 // Logger
@@ -101,35 +97,18 @@ app.get("/api/health", (req, res) => {
 // API Routes
 // =======================
 
-// Admin Auth
 app.use("/api/auth", authRoutes);
-
-// User Auth
 app.use("/api/users", userRoutes);
-
-// Services
 app.use("/api/services", serviceRoutes);
-
-// Areas
 app.use("/api/areas", serviceAreaRoutes);
-
-// Bookings
 app.use("/api/bookings", bookingRoutes);
-
-// Electricians
 app.use("/api/electricians", electricianRoutes);
-
-// Contact
 app.use("/api/contact", contactRoutes);
-
-// Dashboard
 app.use("/api/dashboard", dashboardRoutes);
-
-// Settings
 app.use("/api/settings", settingsRoutes);
 
 // =======================
-// 404
+// Home Route
 // =======================
 
 app.get("/", (req, res) => {
@@ -140,10 +119,15 @@ app.get("/", (req, res) => {
 });
 
 // =======================
-// Error Handling
+// 404 Handler
 // =======================
 
 app.use(notFound);
+
+// =======================
+// Error Handler
+// =======================
+
 app.use(errorHandler);
 
 // =======================
@@ -153,5 +137,5 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(` Server running on port ${PORT}`);
 });
