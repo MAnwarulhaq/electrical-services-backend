@@ -10,7 +10,8 @@ const {
   toggleServiceStatus,
 } = require("../controllers/serviceController");
 const { protect } = require("../middleware/authMiddleware");
-const upload = require("../middleware/uploadMiddleware");
+// const upload = require("../middleware/uploadMiddleware");
+const upload = require("../config/multer");
 
 // Admin routes (must come before /:slug to avoid route collision)
 router.get("/admin/all", protect, getAllServicesAdmin);
